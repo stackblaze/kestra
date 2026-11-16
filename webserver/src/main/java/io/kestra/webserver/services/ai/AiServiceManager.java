@@ -83,12 +83,24 @@ public class AiServiceManager {
             );
         }
 
+        // StackBlaze: with no provider in the configuration, build an OpenAI-compatible one from plain
+        // environment variables (the ones a linked GPU model sets), so no configuration file is needed.
+        if (configs.isEmpty()) {
+            AiProviderConfiguration fromEnv = openAiProviderFromEnv(System.getenv());
+            if (fromEnv != null) {
+                log.info("AI Copilot: using the OpenAI-compatible provider from ENV_AI_URL / ENV_AI_MODEL");
+                configs.add(fromEnv);
+            }
+        }
+
         // AI Copilot requires an explicitly configured provider. When none is configured no service is
         // registered, and the Copilot surfaces as unavailable until the user adds a provider.
         PropertyPlaceholderResolver placeholderResolver = environment.getPlaceholderResolver();
         for (int i = 0; i < configs.size(); i++) {
             // The legacy single-provider configuration, when set, is the entry appended past the declared ones.
-            String configurationPath = i < declaredProviderCount ? "kestra.ai.providers[" + i + "].configuration" : "kestra.ai." + legacyType;
+            String configurationPath = i < declaredProviderCount
+                ? "kestra.ai.providers[" + i + "].configuration"
+                : "kestra.ai." + (legacyType != null ? legacyType : ENV_PROVIDER_ID);
             AiProviderConfiguration provider = resolveConfiguration(configs.get(i), configurationPath, placeholderResolver, environment);
             AiServiceInterface aiService = createAiService(
                 provider,
@@ -111,6 +123,43 @@ public class AiServiceManager {
             aiServices.put(provider.id(), aiService);
             hasConfiguredProvider = true;
         }
+    }
+
+    static final String ENV_PROVIDER_ID = "gpu";
+    static final String ENV_AI_URL = "ENV_AI_URL";
+    static final String ENV_AI_KEY = "ENV_AI_KEY";
+    static final String ENV_AI_MODEL = "ENV_AI_MODEL";
+    static final String ENV_AI_TIMEOUT = "ENV_AI_TIMEOUT";
+    static final String ENV_AI_DEFAULT_TIMEOUT = "PT5M";
+
+    /**
+     * An {@code openai} provider from {@code ENV_AI_URL} (an OpenAI-compatible base URL ending in {@code /v1}) and
+     * {@code ENV_AI_MODEL}, with the optional {@code ENV_AI_KEY} and {@code ENV_AI_TIMEOUT} (ISO-8601, default 5
+     * minutes: a GPU model that sleeps between requests needs a cold start). {@code null} when the URL or the
+     * model is missing.
+     */
+    @Nullable
+    static AiProviderConfiguration openAiProviderFromEnv(Map<String, String> env) {
+        String url = blankToNull(env.get(ENV_AI_URL));
+        String model = blankToNull(env.get(ENV_AI_MODEL));
+        if (url == null || model == null) {
+            return null;
+        }
+        Map<String, Object> configuration = new HashMap<>();
+        configuration.put("baseUrl", url);
+        configuration.put("modelName", model);
+        String key = blankToNull(env.get(ENV_AI_KEY));
+        if (key != null) {
+            configuration.put("apiKey", key);
+        }
+        String timeout = blankToNull(env.get(ENV_AI_TIMEOUT));
+        configuration.put("timeout", timeout != null ? timeout : ENV_AI_DEFAULT_TIMEOUT);
+        return new AiProviderConfiguration(ENV_PROVIDER_ID, model, OpenAiAiService.TYPE, true, configuration);
+    }
+
+    @Nullable
+    private static String blankToNull(@Nullable String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 
     protected AiServiceInterface createAiService(

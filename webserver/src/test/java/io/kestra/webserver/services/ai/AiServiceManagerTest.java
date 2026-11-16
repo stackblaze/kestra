@@ -124,6 +124,39 @@ class AiServiceManagerTest {
     }
 
     @Test
+    void shouldBuildOpenAiProviderFromEnvVariables() {
+        AiProviderConfiguration provider = AiServiceManager.openAiProviderFromEnv(java.util.Map.of(
+            "ENV_AI_URL", " https://gpu.example/v1 ",
+            "ENV_AI_KEY", "secret",
+            "ENV_AI_MODEL", "qwen3-coder"
+        ));
+
+        assertThat(provider).isNotNull();
+        assertThat(provider.type()).isEqualTo("openai");
+        assertThat(provider.isDefault()).isTrue();
+        assertThat(provider.configuration())
+            .containsEntry("baseUrl", "https://gpu.example/v1")
+            .containsEntry("apiKey", "secret")
+            .containsEntry("modelName", "qwen3-coder")
+            .containsEntry("timeout", "PT5M");
+
+        AiServiceManager manager = buildManager(List.of(provider));
+        assertThat(manager.getAiService("gpu")).isInstanceOfSatisfying(
+            OpenAiAiService.class,
+            service -> {
+                assertThat(service.getAiConfiguration().baseUrl()).isEqualTo("https://gpu.example/v1");
+                assertThat(service.getAiConfiguration().timeout()).isEqualTo(java.time.Duration.ofMinutes(5));
+            }
+        );
+    }
+
+    @Test
+    void shouldSkipEnvProviderWithoutUrlOrModel() {
+        assertThat(AiServiceManager.openAiProviderFromEnv(java.util.Map.of("ENV_AI_MODEL", "m"))).isNull();
+        assertThat(AiServiceManager.openAiProviderFromEnv(java.util.Map.of("ENV_AI_URL", "https://x/v1", "ENV_AI_MODEL", " "))).isNull();
+    }
+
+    @Test
     void shouldResolvePlaceholdersInProviderConfiguration() {
         AiProviderConfiguration geminiProvider = new AiProviderConfiguration(
             "gemini-test",
