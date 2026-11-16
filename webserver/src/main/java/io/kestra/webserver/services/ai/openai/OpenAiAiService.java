@@ -9,6 +9,7 @@ import io.kestra.core.services.FlowParsingService;
 import io.kestra.core.services.InstanceService;
 import io.kestra.core.utils.VersionProvider;
 import io.kestra.webserver.services.ai.AiService;
+import io.kestra.webserver.services.ai.CopilotTuning;
 import io.kestra.webserver.services.ai.NamespaceContextTool;
 import io.kestra.webserver.services.posthog.PosthogService;
 
@@ -52,6 +53,7 @@ public class OpenAiAiService extends AiService<OpenAiConfiguration> {
             .logRequests(configuration.logRequests())
             .logResponses(configuration.logResponses())
             .customHeaders(configuration.customHeaders())
+            .customParameters(CopilotTuning.customParameters(System.getenv()))
             .timeout(configuration.timeout());
         pemHttpClientBuilder(configuration.clientPem(), configuration.caPem()).ifPresent(builder::httpClientBuilder);
         return builder.build();
@@ -72,6 +74,7 @@ public class OpenAiAiService extends AiService<OpenAiConfiguration> {
             .logRequests(configuration.logRequests())
             .logResponses(configuration.logResponses())
             .customHeaders(configuration.customHeaders())
+            .customParameters(CopilotTuning.customParameters(System.getenv()))
             .timeout(configuration.timeout());
         pemHttpClientBuilder(configuration.clientPem(), configuration.caPem()).ifPresent(builder::httpClientBuilder);
         return builder.build();

@@ -306,6 +306,8 @@ public abstract class AiService<T extends AiConfiguration> implements AiServiceI
     }
 
     public List<PluginMetadata<ReverseOrderVersion>> allPluginsMetadata() {
+        // StackBlaze: only the plugin groups COPILOT_AI_PLUGINS names (see CopilotTuning).
+        List<String> groups = CopilotTuning.pluginGroups(System.getenv());
         return pluginRegistry.plugins().stream().flatMap(
             parentPlugin ->
             {
@@ -323,7 +325,7 @@ public abstract class AiService<T extends AiConfiguration> implements AiServiceI
                 })
                 );
             }
-        ).toList();
+        ).filter(plugin -> CopilotTuning.offered(plugin.type(), groups)).toList();
     }
 
     public static class ReverseOrderVersion implements Comparable<ReverseOrderVersion> {

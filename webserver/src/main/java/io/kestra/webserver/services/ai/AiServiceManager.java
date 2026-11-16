@@ -157,6 +157,8 @@ public class AiServiceManager {
         }
         String timeout = blankToNull(env.get(COPILOT_AI_TIMEOUT));
         configuration.put("timeout", timeout != null ? timeout : COPILOT_AI_DEFAULT_TIMEOUT);
+        // Flow YAML wants the likeliest answer, not a varied one.
+        configuration.put("temperature", 0.2);
         return new AiProviderConfiguration(ENV_PROVIDER_ID, model, OpenAiAiService.TYPE, true, configuration);
     }
 
