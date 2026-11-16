@@ -17,6 +17,9 @@ import java.util.Map;
 public final class CopilotTuning {
     static final String PLUGINS = "COPILOT_AI_PLUGINS";
     static final String THINKING = "COPILOT_AI_THINKING";
+    static final String MAX_PLUGINS = "COPILOT_AI_MAX_PLUGINS";
+    /** Used when the provider comes from COPILOT_AI_URL and COPILOT_AI_MAX_PLUGINS is not set. */
+    static final int DEFAULT_MAX_PLUGINS = 5;
     static final String PROVIDER_URL = "COPILOT_AI_URL";
     static final String PLUGIN_PREFIX = "io.kestra.plugin.";
 
@@ -58,6 +61,29 @@ public final class CopilotTuning {
             }
         }
         return false;
+    }
+
+    /**
+     * The plugin types whose schema is sent to the model, in the order it picked them. The model may pick up to
+     * ten, and each schema is thousands of tokens: on a small self-hosted model that is most of the wait.
+     * {@code COPILOT_AI_MAX_PLUGINS} sets the limit (0 = no limit); without the env provider nothing is cut.
+     */
+    public static List<String> capPlugins(List<String> picked, Map<String, String> env) {
+        int max = maxPlugins(env);
+        return max <= 0 || picked.size() <= max ? picked : List.copyOf(picked.subList(0, max));
+    }
+
+    static int maxPlugins(Map<String, String> env) {
+        String raw = env.get(MAX_PLUGINS);
+        if (raw == null || raw.isBlank()) {
+            String url = env.get(PROVIDER_URL);
+            return url == null || url.isBlank() ? 0 : DEFAULT_MAX_PLUGINS;
+        }
+        try {
+            return Math.max(Integer.parseInt(raw.trim()), 0);
+        } catch (NumberFormatException e) {
+            return DEFAULT_MAX_PLUGINS;
+        }
     }
 
     /**

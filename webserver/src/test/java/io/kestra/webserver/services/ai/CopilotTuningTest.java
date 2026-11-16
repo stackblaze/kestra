@@ -39,6 +39,16 @@ class CopilotTuningTest {
     }
 
     @Test
+    void shouldCapThePickedPlugins() {
+        List<String> picked = List.of("a", "b", "c", "d", "e", "f", "g");
+
+        assertThat(CopilotTuning.capPlugins(picked, Map.of())).isEqualTo(picked);
+        assertThat(CopilotTuning.capPlugins(picked, Map.of("COPILOT_AI_URL", "x"))).containsExactly("a", "b", "c", "d", "e");
+        assertThat(CopilotTuning.capPlugins(picked, Map.of("COPILOT_AI_URL", "x", "COPILOT_AI_MAX_PLUGINS", "2"))).containsExactly("a", "b");
+        assertThat(CopilotTuning.capPlugins(picked, Map.of("COPILOT_AI_URL", "x", "COPILOT_AI_MAX_PLUGINS", "0"))).isEqualTo(picked);
+    }
+
+    @Test
     void shouldTurnThinkingOffOnlyWhenAsked() {
         assertThat(CopilotTuning.customParameters(Map.of())).isEmpty();
         assertThat(CopilotTuning.customParameters(Map.of("COPILOT_AI_THINKING", "true"))).isEmpty();

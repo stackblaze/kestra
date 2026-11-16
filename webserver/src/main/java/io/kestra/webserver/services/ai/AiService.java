@@ -175,7 +175,14 @@ public abstract class AiService<T extends AiConfiguration> implements AiServiceI
         String generatedFlow = flowAiCopilot.generateFlow(
             this.pluginFinder(flowGenerationPrompt.getConversationId()),
             this.flowYamlBuilder(flowGenerationPrompt.getConversationId()),
-            (plugins) -> JacksonMapper.ofJson().writeValueAsString(jsonSchemaGenerator.schemas(Flow.class, false, plugins, true)),
+            (plugins) ->
+            {
+                // StackBlaze: the schema of every picked plugin goes to the model in full; cap how many.
+                List<String> kept = CopilotTuning.capPlugins(plugins, System.getenv());
+                String schema = JacksonMapper.ofJson().writeValueAsString(jsonSchemaGenerator.schemas(Flow.class, false, kept, true));
+                log.info("AI Copilot: flow schema for {} of {} picked plugin types, {} characters: {}", kept.size(), plugins.size(), schema.length(), kept);
+                return schema;
+            },
             allPluginsMetadata(),
             flowGenerationPrompt,
             tenantId,
