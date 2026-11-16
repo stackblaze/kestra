@@ -14,6 +14,8 @@ import io.kestra.core.services.InstanceService;
 import io.kestra.core.utils.VersionProvider;
 import io.kestra.webserver.services.ai.gemini.GeminiAiService;
 import io.kestra.webserver.services.ai.gemini.GeminiConfiguration;
+import io.kestra.webserver.services.ai.openai.OpenAiAiService;
+import io.kestra.webserver.services.ai.openai.OpenAiConfiguration;
 import io.kestra.webserver.services.posthog.PosthogService;
 
 import io.micronaut.context.annotation.Requires;
@@ -128,10 +130,10 @@ public class AiServiceManager {
             return null;
         }
 
-        if (!"gemini".equals(type)) {
+        if (!GeminiAiService.TYPE.equals(type) && !OpenAiAiService.TYPE.equals(type)) {
             throw new IllegalArgumentException(
-                "Unsupported AI provider type '" + type + "' for Kestra OSS. Only 'gemini' is supported. " +
-                    "Other providers (openai, anthropic, ollama, etc.) require Kestra Enterprise Edition."
+                "Unsupported AI provider type '" + type + "' for Kestra OSS. Only 'gemini' and 'openai' are supported. " +
+                    "Other providers (anthropic, ollama, etc.) require Kestra Enterprise Edition."
             );
         }
 
@@ -139,11 +141,15 @@ public class AiServiceManager {
             ObjectMapper mapper = JacksonMapper.ofJson().copy()
                 .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
-            GeminiConfiguration geminiConfig = mapper.convertValue(configMap, GeminiConfiguration.class);
-            AiService<?> service = new GeminiAiService(
-                pluginRegistry, jsonSchemaGenerator, versionProvider, instanceService, posthogService, this.namespaceContextTool, provider.displayName(), listeners, geminiConfig,
-                expressionContextService, flowParsingService
-            );
+            AiService<?> service = OpenAiAiService.TYPE.equals(type)
+                ? new OpenAiAiService(
+                    pluginRegistry, jsonSchemaGenerator, versionProvider, instanceService, posthogService, this.namespaceContextTool, provider.displayName(), listeners,
+                    mapper.convertValue(configMap, OpenAiConfiguration.class), expressionContextService, flowParsingService
+                )
+                : new GeminiAiService(
+                    pluginRegistry, jsonSchemaGenerator, versionProvider, instanceService, posthogService, this.namespaceContextTool, provider.displayName(), listeners,
+                    mapper.convertValue(configMap, GeminiConfiguration.class), expressionContextService, flowParsingService
+                );
             if (this.kestraDocsContextTool != null) {
                 service.setKestraDocsContextTool(this.kestraDocsContextTool);
             }

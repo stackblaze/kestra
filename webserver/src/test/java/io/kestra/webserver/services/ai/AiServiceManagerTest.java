@@ -12,6 +12,8 @@ import io.kestra.core.plugins.PluginRegistry;
 import io.kestra.core.services.ExpressionContextService;
 import io.kestra.core.services.InstanceService;
 import io.kestra.core.utils.VersionProvider;
+import io.kestra.webserver.services.ai.openai.OpenAiAiService;
+import io.kestra.webserver.services.ai.openai.OpenAiConfiguration;
 import io.kestra.webserver.services.posthog.PosthogService;
 
 import io.micronaut.context.env.Environment;
@@ -101,6 +103,24 @@ class AiServiceManagerTest {
         AiServiceManager manager = buildManager(List.of(geminiProvider));
 
         assertThat(manager.hasConfiguredProvider()).isTrue();
+    }
+
+    @Test
+    void shouldDefaultToOpenAiBaseUrlWhenOpenAiProviderHasNoBaseUrl() {
+        AiProviderConfiguration openAiProvider = new AiProviderConfiguration(
+            "openai-test",
+            "OpenAI",
+            "openai",
+            true,
+            java.util.Map.of("modelName", "gpt-4o-mini", "apiKey", "fake-key")
+        );
+
+        AiServiceManager manager = buildManager(List.of(openAiProvider));
+
+        assertThat(manager.getAiService("openai-test")).isInstanceOfSatisfying(
+            OpenAiAiService.class,
+            service -> assertThat(service.getAiConfiguration().baseUrl()).isEqualTo(OpenAiConfiguration.DEFAULT_BASE_URL)
+        );
     }
 
     @Test
