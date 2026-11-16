@@ -126,9 +126,9 @@ class AiServiceManagerTest {
     @Test
     void shouldBuildOpenAiProviderFromEnvVariables() {
         AiProviderConfiguration provider = AiServiceManager.openAiProviderFromEnv(java.util.Map.of(
-            "ENV_AI_URL", " https://gpu.example/v1 ",
-            "ENV_AI_KEY", "secret",
-            "ENV_AI_MODEL", "qwen3-coder"
+            "COPILOT_AI_URL", " https://gpu.example/v1 ",
+            "COPILOT_AI_KEY", "secret",
+            "COPILOT_AI_MODEL", "qwen3-coder"
         ));
 
         assertThat(provider).isNotNull();
@@ -151,9 +151,17 @@ class AiServiceManagerTest {
     }
 
     @Test
+    void shouldIgnoreTheFlowVariablesForCopilot() {
+        // ENV_AI_* configure flows ({{ envs.ai_url }}), never Copilot.
+        assertThat(AiServiceManager.openAiProviderFromEnv(java.util.Map.of(
+            "ENV_AI_URL", "https://flows.example/v1", "ENV_AI_MODEL", "small-model"
+        ))).isNull();
+    }
+
+    @Test
     void shouldSkipEnvProviderWithoutUrlOrModel() {
-        assertThat(AiServiceManager.openAiProviderFromEnv(java.util.Map.of("ENV_AI_MODEL", "m"))).isNull();
-        assertThat(AiServiceManager.openAiProviderFromEnv(java.util.Map.of("ENV_AI_URL", "https://x/v1", "ENV_AI_MODEL", " "))).isNull();
+        assertThat(AiServiceManager.openAiProviderFromEnv(java.util.Map.of("COPILOT_AI_MODEL", "m"))).isNull();
+        assertThat(AiServiceManager.openAiProviderFromEnv(java.util.Map.of("COPILOT_AI_URL", "https://x/v1", "COPILOT_AI_MODEL", " "))).isNull();
     }
 
     @Test

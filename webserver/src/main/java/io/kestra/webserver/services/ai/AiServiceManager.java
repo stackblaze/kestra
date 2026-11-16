@@ -84,11 +84,14 @@ public class AiServiceManager {
         }
 
         // StackBlaze: with no provider in the configuration, build an OpenAI-compatible one from plain
-        // environment variables (the ones a linked GPU model sets), so no configuration file is needed.
+        // environment variables (COPILOT_AI_*), so no configuration file is needed. Deliberately not the
+        // ENV_AI_* variables flows use: Copilot sends Kestra's whole plugin catalog (tens of thousands of
+        // tokens) and may need another, larger-context model; and without the ENV_ prefix its key is never
+        // exposed to flows as {{ envs.* }}.
         if (configs.isEmpty()) {
             AiProviderConfiguration fromEnv = openAiProviderFromEnv(System.getenv());
             if (fromEnv != null) {
-                log.info("AI Copilot: using the OpenAI-compatible provider from ENV_AI_URL / ENV_AI_MODEL");
+                log.info("AI Copilot: using the OpenAI-compatible provider from COPILOT_AI_URL / COPILOT_AI_MODEL");
                 configs.add(fromEnv);
             }
         }
@@ -126,34 +129,34 @@ public class AiServiceManager {
     }
 
     static final String ENV_PROVIDER_ID = "gpu";
-    static final String ENV_AI_URL = "ENV_AI_URL";
-    static final String ENV_AI_KEY = "ENV_AI_KEY";
-    static final String ENV_AI_MODEL = "ENV_AI_MODEL";
-    static final String ENV_AI_TIMEOUT = "ENV_AI_TIMEOUT";
-    static final String ENV_AI_DEFAULT_TIMEOUT = "PT5M";
+    static final String COPILOT_AI_URL = "COPILOT_AI_URL";
+    static final String COPILOT_AI_KEY = "COPILOT_AI_KEY";
+    static final String COPILOT_AI_MODEL = "COPILOT_AI_MODEL";
+    static final String COPILOT_AI_TIMEOUT = "COPILOT_AI_TIMEOUT";
+    static final String COPILOT_AI_DEFAULT_TIMEOUT = "PT5M";
 
     /**
-     * An {@code openai} provider from {@code ENV_AI_URL} (an OpenAI-compatible base URL ending in {@code /v1}) and
-     * {@code ENV_AI_MODEL}, with the optional {@code ENV_AI_KEY} and {@code ENV_AI_TIMEOUT} (ISO-8601, default 5
+     * An {@code openai} provider from {@code COPILOT_AI_URL} (an OpenAI-compatible base URL ending in {@code /v1}) and
+     * {@code COPILOT_AI_MODEL}, with the optional {@code COPILOT_AI_KEY} and {@code COPILOT_AI_TIMEOUT} (ISO-8601, default 5
      * minutes: a GPU model that sleeps between requests needs a cold start). {@code null} when the URL or the
      * model is missing.
      */
     @Nullable
     static AiProviderConfiguration openAiProviderFromEnv(Map<String, String> env) {
-        String url = blankToNull(env.get(ENV_AI_URL));
-        String model = blankToNull(env.get(ENV_AI_MODEL));
+        String url = blankToNull(env.get(COPILOT_AI_URL));
+        String model = blankToNull(env.get(COPILOT_AI_MODEL));
         if (url == null || model == null) {
             return null;
         }
         Map<String, Object> configuration = new HashMap<>();
         configuration.put("baseUrl", url);
         configuration.put("modelName", model);
-        String key = blankToNull(env.get(ENV_AI_KEY));
+        String key = blankToNull(env.get(COPILOT_AI_KEY));
         if (key != null) {
             configuration.put("apiKey", key);
         }
-        String timeout = blankToNull(env.get(ENV_AI_TIMEOUT));
-        configuration.put("timeout", timeout != null ? timeout : ENV_AI_DEFAULT_TIMEOUT);
+        String timeout = blankToNull(env.get(COPILOT_AI_TIMEOUT));
+        configuration.put("timeout", timeout != null ? timeout : COPILOT_AI_DEFAULT_TIMEOUT);
         return new AiProviderConfiguration(ENV_PROVIDER_ID, model, OpenAiAiService.TYPE, true, configuration);
     }
 
