@@ -86,6 +86,67 @@ public final class CopilotTuning {
         }
     }
 
+    static final String REPAIRS = "COPILOT_AI_REPAIRS";
+    static final int DEFAULT_REPAIRS = 2;
+
+    static final String REPAIR_PROMPT = """
+        You fix Kestra flow YAML. You are given a flow and the validator's error for it. \
+        Return the complete corrected flow as YAML and nothing else: no explanation, no code fence. \
+        Change only what the error requires. Remove a property the validator does not recognise \
+        (use one of the known properties it lists only if it clearly does the same job). \
+        Quote every value that contains a {{ }} expression with double quotes. Keep ids, types and the rest unchanged.""";
+
+    /** How many times an invalid generated flow is sent back for correction; 0 = never. */
+    public static int repairs(Map<String, String> env) {
+        String raw = env.get(REPAIRS);
+        if (raw == null || raw.isBlank()) {
+            String url = env.get(PROVIDER_URL);
+            return url == null || url.isBlank() ? 0 : DEFAULT_REPAIRS;
+        }
+        try {
+            return Math.min(Math.max(Integer.parseInt(raw.trim()), 0), 5);
+        } catch (NumberFormatException e) {
+            return DEFAULT_REPAIRS;
+        }
+    }
+
+    private static final java.util.regex.Pattern BARE_EXPRESSION =
+        java.util.regex.Pattern.compile("^(\\s*(?:-\\s+)?[\\w.-]+:\\s+)(\\{\\{.*\\}\\}.*?)\\s*$");
+
+    /**
+     * Quotes a value that starts with a {{ }} expression and has no quotes of its own: bare, YAML reads the
+     * braces as a mapping and the flow does not parse. A value holding a double quote is wrapped in single
+     * quotes when it has none of those; one holding both is left alone.
+     */
+    public static String quoteExpressions(String yaml) {
+        if (yaml == null) {
+            return "";
+        }
+        StringBuilder out = new StringBuilder();
+        for (String line : yaml.split("\n", -1)) {
+            java.util.regex.Matcher m = BARE_EXPRESSION.matcher(line);
+            if (m.matches()) {
+                String value = m.group(2);
+                if (!value.contains("\"")) {
+                    line = m.group(1) + "\"" + value + "\"";
+                } else if (!value.contains("'")) {
+                    line = m.group(1) + "'" + value + "'";
+                }
+            }
+            out.append(line).append('\n');
+        }
+        out.setLength(out.length() - 1);
+        return out.toString();
+    }
+
+    /** The YAML inside a ```yaml fence, or the text itself. */
+    public static String stripFences(String text) {
+        if (text == null) {
+            return "";
+        }
+        return text.replaceAll("(?m)^\\s*```(?:ya?ml)?\\s*$", "").trim();
+    }
+
     /**
      * Extra request fields for an OpenAI-compatible server. {@code COPILOT_AI_THINKING=false} turns off the
      * hidden reasoning Qwen3-style models write before every answer (vLLM's chat_template_kwargs), which is most

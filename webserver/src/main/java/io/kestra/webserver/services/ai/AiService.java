@@ -189,7 +189,53 @@ public abstract class AiService<T extends AiConfiguration> implements AiServiceI
             pebbleExpressions
         );
 
+        generatedFlow = repairFlow(generatedFlow, tenantId, flowGenerationPrompt.getConversationId());
+
         return GenerationResult.of(this.afterGeneration(ctx, "FlowGenerationResult", Map.of("generatedFlow", generatedFlow), generatedFlow, "generatedFlow"));
+    }
+
+    /**
+     * StackBlaze: a small self-hosted model often returns YAML that does not validate (an invented property, an
+     * unquoted {@code {{ expression }}}). The flow is parsed strictly; on an error the model gets the YAML and the
+     * validator's message back and corrects it, up to COPILOT_AI_REPAIRS times (CopilotTuning). What is returned
+     * is the first version that validates, or the last attempt.
+     */
+    private String repairFlow(String yaml, String tenantId, String conversationId) {
+        int attempts = CopilotTuning.repairs(System.getenv());
+        String current = attempts > 0 ? CopilotTuning.quoteExpressions(yaml) : yaml;
+        for (int attempt = 1; attempt <= attempts; attempt++) {
+            String error = flowError(tenantId, current);
+            if (error == null) {
+                return current;
+            }
+            log.info("AI Copilot: generated flow is invalid, repair {} of {}: {}", attempt, attempts, error);
+            try {
+                String answer = this.chatModel(this.listeners("FlowRepair", conversationId)).chat(
+                    dev.langchain4j.data.message.SystemMessage.from(CopilotTuning.REPAIR_PROMPT),
+                    dev.langchain4j.data.message.UserMessage.from("Validation error:\n" + error + "\n\nFlow YAML:\n" + current)
+                ).aiMessage().text();
+                String fixed = CopilotTuning.quoteExpressions(CopilotTuning.stripFences(answer));
+                if (fixed.isBlank()) {
+                    break;
+                }
+                current = fixed;
+            } catch (Exception e) {
+                log.warn("AI Copilot: flow repair failed: {}", e.getMessage());
+                break;
+            }
+        }
+        return current;
+    }
+
+    /** The validator's message for a flow that does not parse strictly; null when it is valid. */
+    private String flowError(String tenantId, String yaml) {
+        try {
+            flowParsingService.parse(tenantId, yaml, true);
+            return null;
+        } catch (Exception e) {
+            String message = e.getMessage() == null ? e.toString() : e.getMessage();
+            return message.length() > 1500 ? message.substring(0, 1500) : message;
+        }
     }
 
     @Override

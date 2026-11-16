@@ -49,6 +49,22 @@ class CopilotTuningTest {
     }
 
     @Test
+    void shouldQuoteBareExpressions() {
+        String yaml = "tasks:\n  - id: a\n    username: {{ secret('PG_USER') }}\n    message: \"{{ outputs.a.value }}\"\n    uri: {{ inputs.x | default(\"y\") }}\n    plain: text";
+
+        assertThat(CopilotTuning.quoteExpressions(yaml)).isEqualTo(
+            "tasks:\n  - id: a\n    username: \"{{ secret('PG_USER') }}\"\n    message: \"{{ outputs.a.value }}\"\n    uri: '{{ inputs.x | default(\"y\") }}'\n    plain: text");
+    }
+
+    @Test
+    void shouldStripFencesAndReadTheRepairLimit() {
+        assertThat(CopilotTuning.stripFences("```yaml\nid: a\nnamespace: b\n```")).isEqualTo("id: a\nnamespace: b");
+        assertThat(CopilotTuning.repairs(Map.of())).isZero();
+        assertThat(CopilotTuning.repairs(Map.of("COPILOT_AI_URL", "x"))).isEqualTo(2);
+        assertThat(CopilotTuning.repairs(Map.of("COPILOT_AI_URL", "x", "COPILOT_AI_REPAIRS", "0"))).isZero();
+    }
+
+    @Test
     void shouldTurnThinkingOffOnlyWhenAsked() {
         assertThat(CopilotTuning.customParameters(Map.of())).isEmpty();
         assertThat(CopilotTuning.customParameters(Map.of("COPILOT_AI_THINKING", "true"))).isEmpty();
