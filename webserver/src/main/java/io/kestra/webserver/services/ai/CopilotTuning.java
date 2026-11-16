@@ -139,6 +139,92 @@ public final class CopilotTuning {
         return out.toString();
     }
 
+    static final int MAX_FIELD_DROPS = 6;
+
+    private static final java.util.regex.Pattern UNKNOWN_FIELD =
+        java.util.regex.Pattern.compile("Unrecognized field \\\"([\\w.-]+)\\\" \\(class ([\\w.$]+)\\)");
+
+    /**
+     * The flow without the property the validator reports as unrecognised ("Unrecognized field "x" (class
+     * some.plugin.Type)"): the property and everything nested under it, in the tasks of that type. Null when the
+     * error is not of that kind or nothing was removed.
+     */
+    public static String dropUnknownField(String yaml, String error) {
+        java.util.regex.Matcher m = UNKNOWN_FIELD.matcher(error == null ? "" : error);
+        if (yaml == null || !m.find()) {
+            return null;
+        }
+        String field = m.group(1);
+        String type = m.group(2);
+        String[] lines = yaml.split("\n", -1);
+        java.util.regex.Pattern key = java.util.regex.Pattern.compile("^(\\s*)(?:-\\s+)?" + java.util.regex.Pattern.quote(field) + ":(\\s.*)?$");
+        StringBuilder out = new StringBuilder();
+        boolean removed = false;
+        for (int i = 0; i < lines.length; i++) {
+            java.util.regex.Matcher k = key.matcher(lines[i]);
+            if (k.matches() && !lines[i].trim().startsWith("-") && typeOfItem(lines, i, k.group(1).length()).equals(type)) {
+                int indent = k.group(1).length();
+                // Its nested block: the following lines indented deeper.
+                while (i + 1 < lines.length && (lines[i + 1].isBlank() ? false : indentOf(lines[i + 1]) > indent)) {
+                    i++;
+                }
+                removed = true;
+                continue;
+            }
+            out.append(lines[i]).append('\n');
+        }
+        if (!removed) {
+            return null;
+        }
+        out.setLength(out.length() - 1);
+        return out.toString();
+    }
+
+    private static int indentOf(String line) {
+        int n = 0;
+        while (n < line.length() && line.charAt(n) == ' ') {
+            n++;
+        }
+        return n;
+    }
+
+    /** The `type:` of the list item a property at this indent belongs to (searched above, then below). */
+    private static String typeOfItem(String[] lines, int at, int indent) {
+        java.util.regex.Pattern typeLine = java.util.regex.Pattern.compile("^\\s*(?:-\\s+)?type:\\s*[\"']?([\\w.$]+)[\"']?\\s*$");
+        for (int i = at - 1; i >= 0; i--) {
+            if (lines[i].isBlank()) {
+                continue;
+            }
+            int ind = indentOf(lines[i]);
+            boolean itemStart = lines[i].trim().startsWith("- ") && ind == indent - 2;
+            if (ind == indent || itemStart) {
+                java.util.regex.Matcher t = typeLine.matcher(lines[i]);
+                if (t.matches()) {
+                    return t.group(1);
+                }
+            }
+            if (ind < indent) {
+                break;
+            }
+        }
+        for (int i = at + 1; i < lines.length; i++) {
+            if (lines[i].isBlank()) {
+                continue;
+            }
+            int ind = indentOf(lines[i]);
+            if (ind < indent) {
+                break;
+            }
+            if (ind == indent) {
+                java.util.regex.Matcher t = typeLine.matcher(lines[i]);
+                if (t.matches()) {
+                    return t.group(1);
+                }
+            }
+        }
+        return "";
+    }
+
     /** The YAML inside a ```yaml fence, or the text itself. */
     public static String stripFences(String text) {
         if (text == null) {

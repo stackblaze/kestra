@@ -208,6 +208,19 @@ public abstract class AiService<T extends AiConfiguration> implements AiServiceI
             if (error == null) {
                 return current;
             }
+            // An invented property: taken out in code, which the model often fails to do itself.
+            for (int drops = 0; drops < CopilotTuning.MAX_FIELD_DROPS && error != null; drops++) {
+                String dropped = CopilotTuning.dropUnknownField(current, error);
+                if (dropped == null) {
+                    break;
+                }
+                log.info("AI Copilot: removed a property the validator does not know: {}", error.length() > 160 ? error.substring(0, 160) : error);
+                current = dropped;
+                error = flowError(tenantId, current);
+            }
+            if (error == null) {
+                return current;
+            }
             log.info("AI Copilot: generated flow is invalid, repair {} of {}: {}", attempt, attempts, error);
             try {
                 String answer = this.chatModel(this.listeners("FlowRepair", conversationId)).chat(

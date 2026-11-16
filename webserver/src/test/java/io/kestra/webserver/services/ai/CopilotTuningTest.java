@@ -65,6 +65,36 @@ class CopilotTuningTest {
     }
 
     @Test
+    void shouldDropAPropertyTheValidatorDoesNotKnow() {
+        String yaml = """
+            id: f
+            namespace: n
+            tasks:
+              - id: download
+                type: io.kestra.plugin.core.http.Download
+                uri: https://example.com/a.csv
+                saveAs: a.csv
+              - id: size
+                type: io.kestra.plugin.core.storage.Size
+                uri: "{{ outputs.download.uri }}"
+                saveAs:
+                  name: x
+                  deep: true
+              - id: log
+                type: io.kestra.plugin.core.log.Log
+                message: hi""";
+        String error = "Unrecognized field \"saveAs\" (class io.kestra.plugin.core.storage.Size), not marked as ignorable (17 known properties: \"uri\")";
+
+        String fixed = CopilotTuning.dropUnknownField(yaml, error);
+
+        // Only in the task of that type, with its nested block; the Download task keeps its own.
+        assertThat(fixed).contains("saveAs: a.csv").doesNotContain("deep: true").doesNotContain("name: x");
+        assertThat(fixed).contains("uri: \"{{ outputs.download.uri }}\"\n  - id: log");
+        assertThat(CopilotTuning.dropUnknownField(yaml, "YAML syntax error")).isNull();
+        assertThat(CopilotTuning.dropUnknownField(fixed, error)).isNull();
+    }
+
+    @Test
     void shouldTurnThinkingOffOnlyWhenAsked() {
         assertThat(CopilotTuning.customParameters(Map.of())).isEmpty();
         assertThat(CopilotTuning.customParameters(Map.of("COPILOT_AI_THINKING", "true"))).isEmpty();
